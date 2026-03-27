@@ -83,6 +83,24 @@ MODEL=gemini-2.5-flash
 EOF
 echo -e "${GREEN}✅ .env file created${NC}"
 
+# ---- Auto-detect VPC Network and Subnet ----
+echo -e "${YELLOW}🔍 Detecting VPC network...${NC}"
+VPC_NETWORK=$(gcloud compute networks list --format="value(name)" --limit=1 2>/dev/null || echo "")
+if [ -z "$VPC_NETWORK" ]; then
+    echo -e "${RED}❌ No VPC network found. Creating default network...${NC}"
+    gcloud compute networks create default --subnet-mode=auto --quiet 2>/dev/null || true
+    VPC_NETWORK="default"
+fi
+echo -e "   Network: ${BOLD}${VPC_NETWORK}${NC}"
+
+# Find subnet in the target region
+VPC_SUBNET=$(gcloud compute networks subnets list --network="$VPC_NETWORK" --regions="$REGION" --format="value(name)" --limit=1 2>/dev/null || echo "")
+if [ -z "$VPC_SUBNET" ]; then
+    echo -e "${YELLOW}   No subnet in ${REGION}, trying to find any subnet...${NC}"
+    VPC_SUBNET=$(gcloud compute networks subnets list --network="$VPC_NETWORK" --format="value(name)" --limit=1 2>/dev/null || echo "$VPC_NETWORK")
+fi
+echo -e "   Subnet:  ${BOLD}${VPC_SUBNET}${NC}"
+
 # ---- Create Artifact Registry repo if needed ----
 echo -e "${YELLOW}📦 Setting up Artifact Registry...${NC}"
 gcloud artifacts repositories create cloud-run-source-deploy \
@@ -94,7 +112,7 @@ IMAGE_URL="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${SERV
 
 # ---- Step 1: Build the container image ----
 echo ""
-echo -e "${YELLOW}� Step 1/2: Building container image (this may take 3-5 minutes)...${NC}"
+echo -e "${YELLOW}🔨 Step 1/2: Building container image (this may take 3-5 minutes)...${NC}"
 echo ""
 
 gcloud builds submit \
@@ -109,7 +127,6 @@ echo ""
 echo -e "${YELLOW}🚀 Step 2/2: Deploying to Cloud Run...${NC}"
 echo ""
 
-# Try deployment with org-policy-compliant flags first
 gcloud run deploy "$SERVICE_NAME" \
     --image "${IMAGE_URL}" \
     --region "$REGION" \
@@ -121,8 +138,8 @@ gcloud run deploy "$SERVICE_NAME" \
     --min-instances 0 \
     --max-instances 5 \
     --ingress internal-and-cloud-load-balancing \
-    --network default \
-    --subnet default \
+    --network "$VPC_NETWORK" \
+    --subnet "$VPC_SUBNET" \
     --vpc-egress all-traffic \
     --quiet
 
@@ -139,8 +156,7 @@ echo ""
 echo -e "   📡 Health Check: ${CYAN}${SERVICE_URL}/health${NC}"
 echo -e "   🍽️  Web UI:      ${CYAN}${SERVICE_URL}/${NC}"
 echo ""
-echo -e "${YELLOW}💡 Note: Ingress is set to 'internal-and-cloud-load-balancing'.${NC}"
-echo -e "${YELLOW}   To access from browser, you may need a Load Balancer or use:${NC}"
+echo -e "${YELLOW}💡 To access from browser, proxy the service:${NC}"
 echo -e "   gcloud run services proxy ${SERVICE_NAME} --region ${REGION} --port 8080"
 echo ""
 echo -e "${YELLOW}💡 To delete this service later:${NC}"
