@@ -83,20 +83,15 @@ MODEL=gemini-2.5-flash
 EOF
 echo -e "${GREEN}✅ .env file created${NC}"
 
-# ---- Auto-detect VPC Network and Subnet ----
-echo -e "${YELLOW}🔍 Detecting VPC network...${NC}"
-VPC_NETWORK=$(gcloud compute networks list --format="value(name)" --limit=1 2>/dev/null || echo "")
-if [ -z "$VPC_NETWORK" ]; then
-    echo -e "${RED}❌ No VPC network found. Creating default network...${NC}"
-    gcloud compute networks create default --subnet-mode=auto --quiet 2>/dev/null || true
-    VPC_NETWORK="default"
-fi
+# ---- VPC Network ----
+echo -e "${YELLOW}🔍 Setting VPC network...${NC}"
+VPC_NETWORK="uponf-default-vpc"
 echo -e "   Network: ${BOLD}${VPC_NETWORK}${NC}"
 
 # Find subnet in the target region
 VPC_SUBNET=$(gcloud compute networks subnets list --network="$VPC_NETWORK" --regions="$REGION" --format="value(name)" --limit=1 2>/dev/null || echo "")
 if [ -z "$VPC_SUBNET" ]; then
-    echo -e "${YELLOW}   No subnet in ${REGION}, trying to find any subnet...${NC}"
+    echo -e "${YELLOW}   No subnet in ${REGION}, searching all regions...${NC}"
     VPC_SUBNET=$(gcloud compute networks subnets list --network="$VPC_NETWORK" --format="value(name)" --limit=1 2>/dev/null || echo "$VPC_NETWORK")
 fi
 echo -e "   Subnet:  ${BOLD}${VPC_SUBNET}${NC}"
