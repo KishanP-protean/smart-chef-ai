@@ -11,6 +11,7 @@ import io
 import json
 import logging
 import uuid
+from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
@@ -23,14 +24,6 @@ from dotenv import load_dotenv
 import PyPDF2
 from docx import Document
 from PIL import Image
-
-# ADK imports
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.genai import types
-
-# Import the multi-agent system
-from recipe_agent.agent import root_agent
 
 # --- Setup ---
 load_dotenv()
@@ -51,13 +44,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- ADK Session Setup ---
-session_service = InMemorySessionService()
-runner = Runner(
-    agent=root_agent,
-    app_name="smart_chef_ai_app",
-    session_service=session_service,
-)
+# --- ADK Agent Setup (with error handling) ---
+AGENT_READY = False
+runner = None
+session_service = None
+
+try:
+    from google.adk.runners import Runner
+    from google.adk.sessions import InMemorySessionService
+    from google.genai import types
+
+    from recipe_agent.agent import root_agent
+
+    session_service = InMemorySessionService()
+    runner = Runner(
+        agent=root_agent,
+        app_name="smart_chef_ai_app",
+        session_service=session_service,
+    )
+    AGENT_READY = True
+    logger.info("✅ ADK Agent initialized successfully")
+except Exception as e:
+    logger.error(f"❌ Failed to initialize ADK Agent: {e}")
+    import traceback
+    traceback.print_exc()
 
 APP_NAME = "smart_chef_ai_app"
 USER_ID = "web_user"
@@ -65,6 +75,14 @@ USER_ID = "web_user"
 
 async def call_agent(user_message: str, session_id: str) -> str:
     """Send a message to the ADK multi-agent system and get the response."""
+    if not AGENT_READY:
+        raise HTTPException(
+            status_code=503,
+            detail="Agent not initialized. Check server logs for details.",
+        )
+
+    from google.genai import types
+
     session = await session_service.get_session(
         app_name=APP_NAME, user_id=USER_ID, session_id=session_id
     )
@@ -173,6 +191,8 @@ async def generate_recipe(
     try:
         response = await call_agent(prompt, session_id)
         return JSONResponse(content={"status": "success", "recipe": response})
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Agent error: {e}")
         raise HTTPException(
@@ -256,6 +276,8 @@ async def upload_and_generate(
                 "recipe": response,
             }
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Agent error: {e}")
         raise HTTPException(
@@ -274,11 +296,12 @@ async def health_check():
         "status": "healthy",
         "service": "smart-chef-ai",
         "version": "2.0.0",
+        "agent_ready": AGENT_READY,
         "agents": ["content_analyzer", "recipe_chef"],
         "architecture": "multi-agent (SequentialAgent)",
     }
 
 
 # --- Serve Static Files ---
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+static_dir = Path(__file__).parent / "static"
+app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")

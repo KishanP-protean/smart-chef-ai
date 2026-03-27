@@ -18,7 +18,7 @@ from google.adk.tools.tool_context import ToolContext
 # --- Setup ---
 load_dotenv()
 
-MODEL_NAME = os.getenv("MODEL", "gemini-2.5-flash")
+MODEL_NAME = os.getenv("MODEL", "gemini-2.0-flash")
 
 
 # ═══════════════════════════════════════════════
@@ -202,25 +202,6 @@ smart_chef_workflow = SequentialAgent(
 
 
 # ═══════════════════════════════════════════════
-#  ROOT AGENT: Entry Point
+#  ROOT AGENT: The SequentialAgent IS the root
 # ═══════════════════════════════════════════════
-root_agent = Agent(
-    name="smart_chef_ai",
-    model=MODEL_NAME,
-    description="Smart Chef AI — Intelligent recipe generator that validates food content before cooking.",
-    instruction="""You are the **Smart Chef AI** 🧠👨‍🍳 assistant.
-
-Welcome the user and let them know you can:
-1. Generate recipes from ingredients they type
-2. Read uploaded documents (PDF, Word, images, text) and extract ingredients
-3. REJECT non-food documents with a helpful message
-
-When the user provides input (text or extracted document content):
-- Use the 'analyze_content' tool to save their content
-- Then transfer control to the 'smart_chef_workflow' to analyze and cook!
-
-Be friendly and enthusiastic about food! 🍳
-""",
-    tools=[analyze_content],
-    sub_agents=[smart_chef_workflow],
-)
+root_agent = smart_chef_workflow

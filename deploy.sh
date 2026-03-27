@@ -79,7 +79,7 @@ cat > .env << EOF
 GOOGLE_CLOUD_PROJECT=${PROJECT_ID}
 GOOGLE_CLOUD_LOCATION=${REGION}
 GOOGLE_GENAI_USE_VERTEXAI=1
-MODEL=gemini-2.5-flash
+MODEL=gemini-2.0-flash
 EOF
 echo -e "${GREEN}✅ .env file created${NC}"
 
@@ -126,7 +126,7 @@ gcloud run deploy "$SERVICE_NAME" \
     --image "${IMAGE_URL}" \
     --region "$REGION" \
     --no-allow-unauthenticated \
-    --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION},GOOGLE_GENAI_USE_VERTEXAI=1,MODEL=gemini-2.5-flash" \
+    --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION},GOOGLE_GENAI_USE_VERTEXAI=1,MODEL=gemini-2.0-flash" \
     --memory 1Gi \
     --cpu 1 \
     --timeout 300 \
