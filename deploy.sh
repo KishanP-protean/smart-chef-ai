@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# Chef Gemini — One-Click Cloud Run Deployment
+# Smart Chef AI — One-Click Cloud Run Deployment
 # ============================================================
 # Usage: bash deploy.sh
 # ============================================================
@@ -83,15 +83,37 @@ MODEL=gemini-2.5-flash
 EOF
 echo -e "${GREEN}✅ .env file created${NC}"
 
-# ---- Deploy to Cloud Run ----
+# ---- Create Artifact Registry repo if needed ----
+echo -e "${YELLOW}📦 Setting up Artifact Registry...${NC}"
+gcloud artifacts repositories create cloud-run-source-deploy \
+    --repository-format=docker \
+    --location="${REGION}" \
+    --quiet 2>/dev/null || echo -e "   Repository already exists, continuing..."
+
+IMAGE_URL="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${SERVICE_NAME}:latest"
+
+# ---- Step 1: Build the container image ----
 echo ""
-echo -e "${YELLOW}🚀 Deploying to Cloud Run (this may take 3-5 minutes)...${NC}"
+echo -e "${YELLOW}� Step 1/2: Building container image (this may take 3-5 minutes)...${NC}"
 echo ""
 
+gcloud builds submit \
+    --tag "${IMAGE_URL}" \
+    --region="${REGION}" \
+    .
+
+echo -e "${GREEN}✅ Container image built successfully${NC}"
+
+# ---- Step 2: Deploy to Cloud Run ----
+echo ""
+echo -e "${YELLOW}🚀 Step 2/2: Deploying to Cloud Run...${NC}"
+echo ""
+
+# Try deployment with org-policy-compliant flags first
 gcloud run deploy "$SERVICE_NAME" \
-    --source . \
+    --image "${IMAGE_URL}" \
     --region "$REGION" \
-    --allow-unauthenticated \
+    --no-allow-unauthenticated \
     --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION},GOOGLE_GENAI_USE_VERTEXAI=1,MODEL=gemini-2.5-flash" \
     --memory 1Gi \
     --cpu 1 \
@@ -116,6 +138,10 @@ echo -e "   🌐 ${BOLD}Live URL: ${CYAN}${SERVICE_URL}${NC}"
 echo ""
 echo -e "   📡 Health Check: ${CYAN}${SERVICE_URL}/health${NC}"
 echo -e "   🍽️  Web UI:      ${CYAN}${SERVICE_URL}/${NC}"
+echo ""
+echo -e "${YELLOW}💡 Note: Ingress is set to 'internal-and-cloud-load-balancing'.${NC}"
+echo -e "${YELLOW}   To access from browser, you may need a Load Balancer or use:${NC}"
+echo -e "   gcloud run services proxy ${SERVICE_NAME} --region ${REGION} --port 8080"
 echo ""
 echo -e "${YELLOW}💡 To delete this service later:${NC}"
 echo -e "   gcloud run services delete ${SERVICE_NAME} --region ${REGION}"
