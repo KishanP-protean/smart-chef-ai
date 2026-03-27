@@ -67,6 +67,8 @@ gcloud services enable \
     cloudbuild.googleapis.com \
     artifactregistry.googleapis.com \
     aiplatform.googleapis.com \
+    vpcaccess.googleapis.com \
+    compute.googleapis.com \
     --quiet
 
 echo -e "${GREEN}✅ APIs enabled${NC}"
@@ -96,6 +98,10 @@ gcloud run deploy "$SERVICE_NAME" \
     --timeout 300 \
     --min-instances 0 \
     --max-instances 5 \
+    --ingress internal-and-cloud-load-balancing \
+    --network default \
+    --subnet default \
+    --vpc-egress all-traffic \
     --quiet
 
 # ---- Get URL ----
